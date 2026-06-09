@@ -1,0 +1,56 @@
+---
+# dependencies for wordpress installation
+dependencies:
+  - ufw
+  - nginx
+  - ghostscript
+  - libapache2-mod-php
+  - mysql-server
+  - php
+  - php-bcmath
+  - php-curl
+  - php-fpm
+  - php-gd
+  - php-imagick
+  - php-intl
+  - php-json
+  - php-mbstring
+  - php-mysql
+  - php-soap
+  - php-xml
+  - php-xmlrpc
+  - php-zip
+  - unzip
+  - python3-pymysql
+
+services:
+  - nginx
+  - php8.3-fpm # check foe version using ansible
+  - mysql
+
+allowed_ports:
+  - '80'
+  - '22'
+
+allowed_apps:
+  - "Nginx Full"
+  - "OpenSSH"
+
+document_root: /var/www/wordpress
+nginx_site_enabled: /etc/nginx/sites-enabled/default
+
+mysql:
+  user: root
+  passwd: pa55wo4d
+  hosts:
+    - "127.0.0.1"
+    - "::1"
+    - "%"
+    - "localhost"
+
+wp_db:
+  name: "wordpress"
+  user: "wordpress"
+  passwd: "pa55wo4d"
+
+ansible_python_interpreter: "/home/ike/ansible-venv/bin/python3"

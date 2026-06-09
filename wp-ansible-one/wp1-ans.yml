@@ -1,0 +1,178 @@
+---
+
+- name: Install LEMP stack on one server using Ansible.
+  hosts: all
+  become: true
+  vars_files:
+    - vars.yml
+
+  handlers:
+  - name: restart services
+    ansible.builtin.service:
+      name: "{{ item }}"
+      state: restarted
+    loop: "{{ services }}"
+
+  - name: enable firewall
+    community.general.ufw:
+      state: enabled
+
+  tasks:
+
+  # Update cache
+  - name: Update cache
+    ansible.builtin.apt:
+      name: '*'
+      state: latest
+      update_cache: yes
+
+  # Install base sofware requirements such as NTP and firewwalls
+  - name: Install dependencies
+    ansible.builtin.apt:
+      name: "{{ item }}"
+      state: latest
+    loop: "{{ dependencies }}"
+
+  # start and enable services
+
+  - name: Start and enable services
+    ansible.builtin.service:
+      name: "{{ item }}"
+      state: started
+      enabled: true
+    loop: "{{ services }}"
+  
+  # Setup Firewalls for the require ports
+
+  - name: Open firewall ports
+    community.general.ufw:
+      port: "{{ item }}"
+      rule: allow
+    loop: "{{ allowed_ports }}"
+      
+  # Setup firewall fo allow app usage and access
+
+  - name: Setup firewall
+    community.general.ufw:
+      name: "{{ item }}"
+      rule: allow
+      log: true
+    loop: "{{ allowed_apps }}"
+    notify: enable firewall
+# Put in block for download worpress if wordpress.php does not exist  
+  # Install Wordpress
+  - name: download wordpress
+    ansible.builtin.get_url:
+      url: https://wordpress.org/latest.zip
+      dest: /tmp/wordpress
+      mode: "0644"
+
+  - name: unarchive wordpress
+    ansible.builtin.unarchive:
+      src: /tmp/wordpress
+      dest: /var/www/
+      remote_src: true
+
+# change ownership of /var/www/web to www-data to aid NGNIX and worpress make changes
+
+  - name: change ownership of document_root file
+    ansible.builtin.file:
+      path: "{{ document_root }}"
+      owner: www-data
+      group: www-data
+      recurse: true
+
+  - name: check if wp-config exists
+    ansible.builtin.stat:
+      path: "{{ document_root }}/wp-config.php"
+    register: wp_config
+
+  - name: copy wp-config template
+    ansible.builtin.template:
+      src: wp-config.j2
+      dest: "{{ document_root }}/wp-config.php"
+    when: not wp_config.stat.exists
+
+  # setup NGINX config file
+  
+  - name: remove default file from sites-enabled
+    ansible.builtin.file:
+      path: "{{ nginx_site_enabled }}"
+      state: absent
+ 
+  - name: Copy nginx template
+    ansible.builtin.template:
+      src: wp-nginx-conf.j2
+      dest: /etc/nginx/sites-available/wordpress
+
+  - name: link to sites-enabled
+    ansible.builtin.file:
+      src: /etc/nginx/sites-available/wordpress
+      dest: /etc/nginx/sites-enabled/default
+      state: link
+    notify: restart services
+
+####### DATABASE CONFIG ##############
+
+  # Check if ~/.my.cnf file exists
+  - name: check for ~/.my.cnf
+    ansible.builtin.stat:
+      path: "~/.my.cnf"
+    register: my_cnf
+  
+# Change root user when ~/.my.cnf does not exist 
+
+  - name: Setup password for root user
+    community.mysql.mysql_user:
+      name: "{{ mysql.user }}"
+      password: "{{ mysql.passwd }}"
+      host: "{{ item }}"
+      priv: "*.*:ALL,GRANT"
+      check_implicit_admin: true
+      login_user: "{{ mysql.user }}"
+      login_unix_socket: /run/mysqld/mysqld.sock
+    loop: "{{ mysql.hosts }}"
+    when: not my_cnf.stat.exists
+    notify: restart services
+  
+  - name: create cnf file
+    ansible.builtin.template:
+      src: my.cnf-conf.j2
+      dest: ~/.my.cnf
+      mode: "0644"
+    
+  - name: Delete test and all anonymous users
+    community.mysql.mysql_user:
+      name: ''
+      state: absent
+    loop: "{{ mysql.hosts }}"
+
+  - name: Delete test data and anonymous users
+    community.mysql.mysql_db:
+      name: ''
+      state: absent
+
+  # Configure database
+  
+  - name: create wordpress database
+    community.mysql.mysql_db:
+      name: "{{ wp_db.name }}"
+      state: present
+  
+  - name: Create database user
+    community.mysql.mysql_user:
+      name: "{{ wp_db.user }}"
+      password: "{{ wp_db.passwd }}"
+      host: "{{ item }}"
+      priv: "{{ wp_db.name }}.*:ALL"
+      state: present
+    notify: restart services
+    loop: "{{ mysql.hosts }}"
+  
+  #   - Make users and config password for root user
+  # Configure Wordpress [w-config.php file]
+  # 
+  # Generate SSL certificate
+  #
+  # Add SSL config to NGINX config
+

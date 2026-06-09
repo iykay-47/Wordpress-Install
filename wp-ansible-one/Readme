@@ -1,0 +1,208 @@
+### Edit ReadMe
+
+# WordPress LEMP Stack Deployment with Ansible
+
+Automated deployment of WordPress on a LEMP (Linux, Nginx, MySQL, PHP) stack using Ansible. This playbook handles complete server setup, security configuration, and WordPress installation on Ubuntu/Debian systems.
+
+## Overview
+
+This Ansible playbook automates the deployment of a production-ready WordPress installation with:
+- Nginx web server
+- MySQL database server
+- PHP 8.3 with required extensions
+- UFW firewall configuration
+- Optimized WordPress configuration
+
+## Prerequisites
+
+- **Control Machine**: Ansible 2.9+ installed
+- **Target Server**: Ubuntu 20.04+ or Debian 10+
+- **Access**: SSH access with sudo privileges
+- **Python**: Python 3 on target server
+
+## Project Structure
+
+```
+.
+├── wp1-ans.yml           # Main playbook
+├── vars.yml              # Configuration variables
+├── my.cnf-conf.j2        # MySQL client configuration template
+├── wp-config.j2          # WordPress configuration template
+├── wp-nginx-conf.j2      # Nginx configuration template
+└── README.md             # This file
+```
+
+## Quick Start
+
+### 1. Configure Inventory
+
+Create an `inventory.ini` file:
+
+```ini
+[wordpress_servers]
+your-server-ip ansible_user=your-ssh-user ansible_ssh_private_key_file=~/.ssh/id_rsa
+```
+
+### 2. Customize Variables
+
+Edit `vars.yml` to match your requirements:
+
+```yaml
+mysql:
+  user: root
+  passwd: YOUR_SECURE_PASSWORD  # Change this!
+
+wp_db:
+  name: "wordpress"
+  user: "wordpress"
+  passwd: YOUR_SECURE_PASSWORD  # Change this!
+```
+
+**⚠️ Security Warning**: Change default passwords before deployment!
+
+### 3. Run the Playbook
+
+```bash
+ansible-playbook -i inventory.ini wp1-ans.yml
+```
+
+### 4. Complete WordPress Setup
+
+After successful deployment:
+1. Navigate to `http://your-server-ip`
+2. Complete the WordPress installation wizard
+3. Create your admin account
+
+## Configuration
+
+### Variables (`vars.yml`)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `dependencies` | Required system packages | See vars.yml |
+| `services` | Services to start/enable | nginx, php8.3-fpm |
+| `allowed_ports` | UFW firewall ports | 22, 80 |
+| `document_root` | WordPress installation path | /var/www/wordpress |
+| `mysql.passwd` | MySQL root password | pa55wo4d |
+| `wp_db.name` | WordPress database name | wordpress |
+| `wp_db.user` | WordPress database user | wordpress |
+| `wp_db.passwd` | WordPress database password | pa55wo4d |
+
+### Security Considerations
+
+1. **Change Default Passwords**: Update all passwords in `vars.yml`
+2. **WordPress Salt Keys**: Generate unique keys at https://api.wordpress.org/secret-key/1.1/salt/ and update `wp-config.j2`
+3. **SSL/TLS**: Consider adding HTTPS with Let's Encrypt (not included)
+4. **Firewall**: Review and adjust `allowed_ports` for your use case
+
+## What the Playbook Does
+
+### System Setup
+- Updates package cache
+- Installs LEMP stack dependencies
+- Configures and enables services
+- Sets up UFW firewall rules
+
+### WordPress Installation
+- Downloads latest WordPress
+- Extracts to document root
+- Sets proper file ownership (www-data)
+- Configures WordPress database settings
+
+### Nginx Configuration
+- Removes default site configuration
+- Deploys optimized WordPress configuration
+- Enables PHP-FPM processing
+- Configures static file caching
+
+### MySQL Configuration
+- Secures MySQL installation
+- Creates WordPress database
+- Creates WordPress database user with proper privileges
+- Removes test databases and anonymous users
+
+## Post-Installation
+
+### Verify Installation
+
+```bash
+# Check services are running
+systemctl status nginx
+systemctl status mysql
+systemctl status php8.3-fpm
+
+# Check firewall status
+sudo ufw status
+
+# Test database connection
+mysql -u wordpress -p -e "SHOW DATABASES;"
+```
+
+### Common Issues
+
+**"Error establishing a database connection"**
+- Verify MySQL is running: `systemctl status mysql`
+- Check credentials in `/var/www/wordpress/wp-config.php`
+- Test database connection: `mysql -u wordpress -p`
+
+**502 Bad Gateway**
+- Verify PHP-FPM is running: `systemctl status php8.3-fpm`
+- Check PHP-FPM socket path in Nginx config matches
+
+**Permission Denied**
+- Ensure www-data owns WordPress directory: `ls -la /var/www/wordpress`
+- Fix with: `sudo chown -R www-data:www-data /var/www/wordpress`
+
+## Maintenance
+
+### Update WordPress
+```bash
+# Backup first!
+sudo -u www-data wp core update --path=/var/www/wordpress
+```
+
+### Database Backup
+```bash
+mysqldump -u wordpress -p wordpress > wordpress_backup_$(date +%Y%m%d).sql
+```
+
+## Roadmap
+
+- [ ] SSL/TLS certificate automation (Let's Encrypt)
+- [ ] Automated backup configuration
+- [ ] WordPress CLI installation
+- [ ] Multi-site support
+- [ ] Redis object caching
+- [ ] Fail2ban integration
+
+## Contributing
+
+Contributions welcome! Please ensure:
+- Variables are well-documented
+- Tasks include descriptive names
+- Changes are tested on Ubuntu 22.04
+- Security best practices are followed
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Support
+
+For issues and questions:
+- Check the [Common Issues](#common-issues) section
+- Review Ansible logs: `ansible-playbook -vvv ...`
+- Verify server requirements are met
+
+## Acknowledgments
+
+- WordPress configuration based on official recommendations
+- Nginx configuration optimized for WordPress
+- Security practices from Ansible and WordPress communities
+
+---
+
+**Version**: 1.0.0  
+**Last Updated**: December 2025  
+**Ansible Version**: 2.9+  
+**Tested On**: Ubuntu 22.04 LTS
